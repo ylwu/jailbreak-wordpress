@@ -61,7 +61,6 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
       done: function (errors, window) {
         console.log(errors);
         var $ = window.$;
-
         $('img').map(function() {
           Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + this.src);
           var url = fixUrl(this.src);
@@ -73,18 +72,23 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
           this.sec = "images/" + fname;
         });
 
-        $("link[type*=css]").map(function() { 
-          if (this.href) {
-            Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + this.href);
-            var url = fixUrl(this.href);
+        _.each($('link'), function(elem, index) {
+          var jqElem = $(elem);
+          console.log("find link", jqElem.attr('href'), jqElem.prop('type')); 
+          if ((elem.href) &&   
+            ($(elem).prop('type') !== null) &&
+            ($(elem).prop('type').indexOf("css") != -1)){
+            console.log("find link with href");
+            Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + elem.href);
+            var url = fixUrl(elem.href);
             var fname = filenameForUrl(url);
             self.assetQueue[url] = { 
               filename: fname,
               type: 'css' 
             };
-            this.href = "stylesheets/" + fname;
+            elem.href = "stylesheets/" + fname;
           }
-        });
+        }, this);
 
         $("script[type*=javascript]").map(function() {
            if (this.src) {

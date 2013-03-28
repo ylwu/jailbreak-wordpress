@@ -30,12 +30,11 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
   var fixUrl = function(url) {
     if (url.substring(0,2) == "//") {
       url = "http:" + url;
+    } else if (url.substring(0,1) == "/") {
+      url = "http://" + theme.contentMap.domain + url;
     }
-    if (url.substring(0,4)!= "http"){
-      url = theme.contentMap.domain + theme.contentMap.pages[0].path+url;
-    }
-    if (url.substring(0,4)!= "http"){
-      url = "http://" + url;
+    if (url.substring(0,4) != "http"){
+      url = theme.contentMap.domain + theme.contentMap.pages[0].path + url;
     }
     return url;
   };
@@ -53,64 +52,57 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     return filename;
   };
 
+  var addToAssetQueue = function($, type, node, attr, newbase) {
+    var e = $(node);
+    var urlUnfixed = e.attr(attr);
+    var url = fixUrl(urlUnfixed);
+    var filename = filenameForUrl(url);
+    Jailbreak.Pipeline.log(self, "Asset to download: " + url + " --> " + filename);
+    self.assetQueue[url] = {
+      filename: filename,
+      type: type
+    };
+    e.attr(attr, url);
+  };
+
   _.each(_.clone(this.pageQueue), function(html, name) {
     var jsdom = require('jsdom');
     jsdom.env({
       html: html,
-      scripts: ["http://code.jquery.com/jquery.js"],
+      //scripts: ["http://code.jquery.com/jquery.js"],
+      scripts: ["http://localhost:4000/js/jquery.js"],
       done: function (errors, window) {
-        console.log(errors);
-        var $ = window.$;
-        $('img').map(function() {
-          Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + this.src);
-          var url = fixUrl(this.src);
-          var fname = filenameForUrl(url);
-          self.assetQueue[url] = {
-            filename: fname,
-            type: 'img'
-          };
-          this.sec = "images/" + fname;
-        });
-
-        _.each($('link'), function(elem, index) {
-          var jqElem = $(elem);
-          console.log("find link", jqElem.attr('href'), jqElem.prop('type')); 
-          if ((elem.href) &&   
-            ($(elem).prop('type') !== null) &&
-            ($(elem).prop('type').indexOf("css") != -1)){
-            console.log("find link with href");
-            Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + elem.href);
-            var url = fixUrl(elem.href);
-            var fname = filenameForUrl(url);
-            self.assetQueue[url] = { 
-              filename: fname,
-              type: 'css' 
-            };
-            elem.href = "stylesheets/" + fname;
+        if (errors) {
+          Jailbreak.Pipeline.log(self, "Error loading up page HTML with scripts: " + name);
+          Jailbreak.Pipeline.log(self, errors);
+        } else {
+          var $ = window.$;
+          _.each($('img'), function(elem) {
+            addToAssetQueue($, 'img', elem, 'src', 'images/');
+          });
+  
+          _.each($('link'), function(elem) {
+            var e = $(elem);
+            if (
+              ((! _.isNull(e.prop('type'))) && (e.prop('type').indexOf('css') != -1)) ||
+              ((! _.isUndefined(e.attr('rel'))) && (e.attr('rel') == 'stylesheets'))
+            ) {
+              addToAssetQueue($, 'css', elem, 'href', 'stylesheets/');
+            }
+          });
+  
+          _.each($("script[type*=javascript]"), function(elem) {
+            addToAssetQueue($, 'js', elem, 'src', 'javascripts/');
+          });
+  
+          theme.data.fixedSources[name] = window.document.documentElement.innerHTML;
+  
+          // Now remove this name from the object
+          delete self.pageQueue[name];
+  
+          if (_.keys(self.pageQueue).length === 0) {
+            self.fetchAssets(theme, pipeline);
           }
-        }, this);
-
-        $("script[type*=javascript]").map(function() {
-           if (this.src) {
-             Jailbreak.Pipeline.log(self, "Queueing asset fetch for: " + name + ": " + this.src);
-             var url = fixUrl(this.src);
-             var fname = filenameForUrl(url);
-             self.assetQueue[url] = {
-               filename: fname,
-               type: 'js' 
-             };
-             this.src = "javascripts/" + fname;
-             console.log("SRC:", this.src);
-           }
-        });
-
-        theme.data.fixedSources[name] = window.document.documentElement.innerHTML;
-
-        // Now remove this name from the object
-        delete self.pageQueue[name];
-
-        if (_.keys(self.pageQueue).length === 0) {
-          self.fetchAssets(theme, pipeline);
         }
       } // done
     });
@@ -133,6 +125,7 @@ Jailbreak.Pipeline.FetchAssets.prototype.fetchAssets = function(theme, pipeline)
 
   _.each(_.clone(this.assetQueue), function(info, url) {
     var request = require('request');
+    Jailbreak.Pipeline.log(self, "SENDING REQUEST: " + url);
     request({uri:url}, function (error, response, body) {
       if (!error && response.statusCode == 200) {
         if (body) {
@@ -152,7 +145,7 @@ Jailbreak.Pipeline.FetchAssets.prototype.fetchAssets = function(theme, pipeline)
         }
         maybeFinish(url);
       } else {
-        Jailbreak.Pipeline.log(self, "error " + error);
+        Jailbreak.Pipeline.log(self, "Asset request error " + error);
         pipeline.advance(self, theme, {success:false});
       }
     });

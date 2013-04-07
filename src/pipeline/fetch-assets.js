@@ -36,6 +36,10 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     if (url.substring(0,4) != "http"){
       url = theme.contentMap.domain + theme.contentMap.pages[0].path + url;
     }
+
+    if (url.substring(0,4)!= "http"){
+      url = "http://" + url;
+    }
     return url;
   };
 
@@ -56,6 +60,8 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     var e = $(node);
     var urlUnfixed = e.attr(attr);
     var url = fixUrl(urlUnfixed);
+    console.log(urlUnfixed);
+    console.log(url);
     var filename = filenameForUrl(url);
     Jailbreak.Pipeline.log(self, "Asset to download: " + url + " --> " + filename);
     self.assetQueue[url] = {
@@ -69,8 +75,7 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     var jsdom = require('jsdom');
     jsdom.env({
       html: html,
-      //scripts: ["http://code.jquery.com/jquery.js"],
-      scripts: ["http://localhost:4000/js/jquery.js"],
+      scripts: ["http://code.jquery.com/jquery-1.9.1.min.js"],
       done: function (errors, window) {
         if (errors) {
           Jailbreak.Pipeline.log(self, "Error loading up page HTML with scripts: " + name);
@@ -85,14 +90,19 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
             var e = $(elem);
             if (
               ((! _.isNull(e.prop('type'))) && (e.prop('type').indexOf('css') != -1)) ||
-              ((! _.isUndefined(e.attr('rel'))) && (e.attr('rel') == 'stylesheets'))
+              ((! _.isUndefined(e.attr('rel'))) && (e.attr('rel') == 'stylesheet'))
             ) {
               addToAssetQueue($, 'css', elem, 'href', 'stylesheets/');
             }
           });
   
-          _.each($("script[type*=javascript]"), function(elem) {
-            addToAssetQueue($, 'js', elem, 'src', 'javascripts/');
+          _.each($('script'), function(elem) {
+            var e = $(elem);
+            if (
+              (! _.isUndefined(e.attr('src'))) && (e.attr('src').indexOf('js') != -1)
+              ){
+              addToAssetQueue($, 'js', elem, 'src', 'javascripts/');
+            }   
           });
   
           theme.data.fixedSources[name] = window.document.documentElement.innerHTML;
@@ -145,7 +155,7 @@ Jailbreak.Pipeline.FetchAssets.prototype.fetchAssets = function(theme, pipeline)
         }
         maybeFinish(url);
       } else {
-        Jailbreak.Pipeline.log(self, "Asset request error " + error);
+        Jailbreak.Pipeline.log(self, "Asset request error at " + url + "  error: " + error);
         pipeline.advance(self, theme, {success:false});
       }
     });

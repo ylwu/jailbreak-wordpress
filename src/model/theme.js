@@ -34,6 +34,9 @@ Jailbreak.Theme = function(name, directory, contentMap) {
     // URL -> Javascript Map
     javascripts: {},
 
+    // URL -> Other Resources Map
+    other: {},
+
     // Pipeline name
     pipelineStatus: {},
     

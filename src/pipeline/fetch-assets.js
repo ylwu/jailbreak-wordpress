@@ -43,6 +43,22 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     return url;
   };
 
+  var localUrl = function(filename,type){
+    var url;
+    if (type == "js") { 
+      url = "javascripts/" + filename;
+    } else if (type == "css") {
+      url = "stylesheets/" + filename;
+    } else if (type == "img") {
+      url = "images/" + filename;
+    } else if (type == "other") {
+      url = "other/" + filename;
+    } else {
+      console.log(self, "Warning: unknown content type: " + type);
+    }
+    return url; 
+  };
+
   var Uri = require("jsuri");
 
   var filenameForUrl = function(url) {
@@ -60,15 +76,19 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
     var e = $(node);
     var urlUnfixed = e.attr(attr);
     var url = fixUrl(urlUnfixed);
-    console.log(urlUnfixed);
-    console.log(url);
     var filename = filenameForUrl(url);
     Jailbreak.Pipeline.log(self, "Asset to download: " + url + " --> " + filename);
+
     self.assetQueue[url] = {
       filename: filename,
       type: type
     };
-    e.attr(attr, url);
+    e.attr(attr, localUrl(filename,type));
+  };
+
+
+  var endsWith = function(str, suffix) {
+    return str.indexOf(suffix, str.length - suffix.length) !== -1;
   };
 
   _.each(_.clone(this.pageQueue), function(html, name) {
@@ -82,6 +102,7 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
           Jailbreak.Pipeline.log(self, errors);
         } else {
           var $ = window.$;
+
           _.each($('img'), function(elem) {
             addToAssetQueue($, 'img', elem, 'src', 'images/');
           });
@@ -89,24 +110,29 @@ Jailbreak.Pipeline.FetchAssets.prototype.queueAssets = function(theme, pipeline)
           _.each($('link'), function(elem) {
             var e = $(elem);
             if (
-              ((! _.isNull(e.prop('type'))) && (e.prop('type').indexOf('css') != -1)) ||
+              ((! _.isNull(e.prop('href'))) && (endsWith(e.prop('href'),'.css'))) ||
               ((! _.isUndefined(e.attr('rel'))) && (e.attr('rel') == 'stylesheet'))
             ) {
               addToAssetQueue($, 'css', elem, 'href', 'stylesheets/');
+            } else if (
+              ! _.isNull(e.prop('href'))
+              ){
+              addToAssetQueue($, 'other', elem, 'href', 'other/');
             }
           });
   
           _.each($('script'), function(elem) {
             var e = $(elem);
             if (
-              (! _.isUndefined(e.attr('src'))) && (e.attr('src').indexOf('js') != -1)
-              ){
+              ((! _.isUndefined(e.attr('src'))) && 
+                (endsWith(e.attr('src'),'js') || (! _.isNull(e.prop('type')) && e.attr('type').indexOf('javascript') != -1)
+                ))
+            ) { 
               addToAssetQueue($, 'js', elem, 'src', 'javascripts/');
             }   
           });
   
           theme.data.fixedSources[name] = window.document.documentElement.innerHTML;
-  
           // Now remove this name from the object
           delete self.pageQueue[name];
   
@@ -132,32 +158,76 @@ Jailbreak.Pipeline.FetchAssets.prototype.fetchAssets = function(theme, pipeline)
       pipeline.advance(self, theme, { success: true });
     } 
   };
-
+  
   _.each(_.clone(this.assetQueue), function(info, url) {
-    var request = require('request');
-    Jailbreak.Pipeline.log(self, "SENDING REQUEST: " + url);
-    request({uri:url}, function (error, response, body) {
-      if (!error && response.statusCode == 200) {
-        if (body) {
-          info.data = body;
-        } else {
-          info.data = "";
-        }
-        Jailbreak.Pipeline.log(self, "Fetched " + url);
+    
+    var http = require('http');
+    var req = http.request(url,function(res){
+      if (info.type == 'img') {
+        res.setEncoding('binary');
+      }
+      var data = '';
+      res.on('data', function(chunk){
+        data += chunk;
+      });
+
+      res.on('end',function(){
+        Jailbreak.Pipeline.log(self,"Fetched " + url);
+        info.data = data;
         if (info.type == "js") {
           theme.data.javascripts[url] = info;
         } else if (info.type == "css") {
           theme.data.stylesheets[url] = info;
         } else if (info.type == "img") {
+          buf= new Buffer(info.data, encoding = 'binary');
+          info.data = buf.toString('base64');
           theme.data.images[url] = info;
+        } else if (info.type == "other") {
+          theme.data.other[url] = info;
         } else {
           Jailbreak.Pipeline.log(self, "Warning: unknown content type: " + info.type);
         }
         maybeFinish(url);
-      } else {
-        Jailbreak.Pipeline.log(self, "Asset request error at " + url + "  error: " + error);
-        pipeline.advance(self, theme, {success:false});
-      }
+      });
+
     });
+
+    req.on('error', function(e) {
+        Jailbreak.Pipeline.log(self, "Asset request error at " + url + "  error: " + e.message);
+        maybeFinish(url);
+    });
+
+    req.end();
+  
+    // var request = require('request');  
+    // Jailbreak.Pipeline.log(self, "SENDING REQUEST: " + url);
+    // request({uri:url}, function (error, response, body) {
+    //   if (!error && response.statusCode == 200) {
+    //     if (body) {
+    //       info.data = body;
+    //     } else {
+    //       info.data = "";
+    //     }
+
+        //Jailbreak.Pipeline.log(self, "Fetched " + url);
+      //   if (info.type == "js") {
+      //     theme.data.javascripts[url] = info;
+      //   } else if (info.type == "css") {
+      //     theme.data.stylesheets[url] = info;
+      //   } else if (info.type == "img") {
+      //     //fs.writeFileSync("test2.png", info.data, 'binary');
+      //     buf= new Buffer(info.data, encoding = 'binary');
+      //     info.data = buf.toString('base64');
+      //     theme.data.images[url] = info;
+      //   } else if (info.type == "other") {
+      //     theme.data.other[url] = info;
+      //   } else {
+      //     Jailbreak.Pipeline.log(self, "Warning: unknown content type: " + info.type);
+      //   }
+      // } else {
+      //   Jailbreak.Pipeline.log(self, "Asset request error at " + url + "  error: " + error);
+      // }
+  //     maybeFinish(url);
+  //});
   }, this);
 };

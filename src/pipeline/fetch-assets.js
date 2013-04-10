@@ -198,36 +198,6 @@ Jailbreak.Pipeline.FetchAssets.prototype.fetchAssets = function(theme, pipeline)
     });
 
     req.end();
-  
-    // var request = require('request');  
-    // Jailbreak.Pipeline.log(self, "SENDING REQUEST: " + url);
-    // request({uri:url}, function (error, response, body) {
-    //   if (!error && response.statusCode == 200) {
-    //     if (body) {
-    //       info.data = body;
-    //     } else {
-    //       info.data = "";
-    //     }
-
-        //Jailbreak.Pipeline.log(self, "Fetched " + url);
-      //   if (info.type == "js") {
-      //     theme.data.javascripts[url] = info;
-      //   } else if (info.type == "css") {
-      //     theme.data.stylesheets[url] = info;
-      //   } else if (info.type == "img") {
-      //     //fs.writeFileSync("test2.png", info.data, 'binary');
-      //     buf= new Buffer(info.data, encoding = 'binary');
-      //     info.data = buf.toString('base64');
-      //     theme.data.images[url] = info;
-      //   } else if (info.type == "other") {
-      //     theme.data.other[url] = info;
-      //   } else {
-      //     Jailbreak.Pipeline.log(self, "Warning: unknown content type: " + info.type);
-      //   }
-      // } else {
-      //   Jailbreak.Pipeline.log(self, "Asset request error at " + url + "  error: " + error);
-      // }
-  //     maybeFinish(url);
-  //});
+    
   }, this);
 };
